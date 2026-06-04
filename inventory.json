@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Screwdriver",
+    "quantity": 3,
+    "category": "Tools",
+    "last_accessed": "2026-06-04 15:35"
+  },
+  {
+    "name": "Arduino Uno",
+    "quantity": 2,
+    "category": "Electronics",
+    "last_accessed": "2026-06-04 15:35"
+  },
+  {
+    "name": "Wire Spool",
+    "quantity": 5,
+    "category": "Electronics",
+    "last_accessed": "2026-06-04 15:35"
+  }
+]
