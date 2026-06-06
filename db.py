@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
 from item import Item
+from enums import Action
 
 DB_FILE = "inventory.db"
 
@@ -18,6 +19,8 @@ def create_table():
                 last_accessed TEXT NOT NULL
             )
         """)
+    create_transactions_table()
+
     print("Database ready.")
 
 def add_item(item):
@@ -51,3 +54,58 @@ def update_quantity(name, new_quantity):
         print(f"Item '{name}' not found.")
     else:
         print(f"Updated '{name}' quantity to {new_quantity}.")
+
+
+def create_transactions_table():
+    with get_connection() as conn:
+        conn.execute(""" 
+                     CREATE TABLE IF NOT EXISTS transactions (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     item_name TEXT NOT NULL,
+                     action TEXT NOT NULL,
+                     timestamp TEXT NOT NULL)""")
+        
+def log_transaction(item_name, action):
+    with get_connection() as conn:
+        conn.execute("""
+            INSERT INTO transactions (item_name, action, timestamp)
+            VALUES (?, ?, ?)
+        """, (item_name, action, datetime.now().strftime('%Y-%m-%d %H:%M')))
+
+def check_out(name):
+    items = get_all_items()
+    match = next((i for i in items if i.name.lower() == name.lower()), None)
+
+    if match is None:
+        print(f"  Item '{name}' not found in inventory.")
+        return False
+    if match.quantity <= 0:
+        print(f"  Cannot check out '{name}' — quantity is 0.")
+        return False
+
+    update_quantity(match.name, match.quantity - 1)
+    log_transaction(match.name, "check_out")
+    print(f"  '{match.name}' checked out. {match.quantity - 1} remaining.")
+    return True
+
+def check_in(name):
+    items = get_all_items()
+    match = next((i for i in items if i.name.lower() == name.lower()), None)
+
+    if match is None:
+        print(f"  Item '{name}' not found in inventory.")
+        return False
+
+    update_quantity(match.name, match.quantity + 1)
+    log_transaction(match.name, "check_in")
+    print(f"  '{match.name}' checked in. {match.quantity + 1} now in storage.")
+    return True
+
+def get_history(name):
+    with get_connection() as conn:
+        rows = conn.execute("""
+            SELECT action, timestamp FROM transactions
+            WHERE LOWER(item_name) = LOWER(?)
+            ORDER BY timestamp DESC
+        """, (name,)).fetchall()
+    return rows
