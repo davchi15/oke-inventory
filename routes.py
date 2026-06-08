@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from db import add_item, get_all_items, check_in, check_out, get_history
-from Item import Item
+from item import Item
 
 bp = Blueprint("main", __name__)
 
