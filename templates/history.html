@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>History — {{ name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>History for "{{ name }}"</h1>
+    <div class="card">
+      {% if rows %}
+      <table>
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for action, timestamp in rows %}
+          <tr>
+            <td>{{ "Checked Out" if action.value == "check_out" else "Checked In" }}</td>
+            <td>{{ timestamp }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <p>No transactions found.</p>
+      {% endif %}
+      <a class="btn btn-history" href="/">← Back to Inventory</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oke Inventory</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <div class="container">
+    <h1>Oke Inventory</h1>
+
+    <!-- Add Item Form -->
+    <div class="card">
+      <h2>Add Item</h2>
+      <form action="/add" method="POST">
+        <input type="text" name="name" placeholder="Item name" required />
+        <input type="number" name="quantity" placeholder="Quantity" min="0" required />
+        <select name="category">
+          <option value="Tools">Tools</option>
+          <option value="Electronics">Electronics</option>
+          <option value="Components">Components</option>
+          <option value="Other">Other</option>
+        </select>
+        <button type="submit">Add Item</button>
+      </form>
+    </div>
+
+    <!-- Inventory Table -->
+    <div class="card">
+      <h2>Current Inventory</h2>
+      {% if items %}
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Quantity</th>
+            <th>Category</th>
+            <th>Last Accessed</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>{{ item.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.category }}</td>
+            <td>{{ item.last_accessed.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>
+              <a class="btn btn-in" href="/checkin/{{ item.name }}">Check In</a>
+              <a class="btn btn-out" href="/checkout/{{ item.name }}">Check Out</a>
+              <a class="btn btn-history" href="/history/{{ item.name }}">History</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <p>No items in inventory yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</body>
+</html>
