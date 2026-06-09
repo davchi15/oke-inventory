@@ -1,39 +1,25 @@
 from ultralytics import YOLO
 import cv2
 import time
+from camera import find_camera
+from db import check_in, check_out, get_all_items
+from item_map import ITEM_MAP
+from enums import Action
 
-MODEL_PATH = "yolov8s.pt"  # nano model — fastest, smallest, best for development
+MODEL_PATH = "yolov8s.pt"
+CONFIDENCE_THRESHOLD = 0.75  # only act on detections above this confidence
 
 def load_model():
     print("Loading YOLOv8 model...")
-    model = YOLO(MODEL_PATH)  # downloads automatically on first run
+    model = YOLO(MODEL_PATH)
     print("Model ready.")
     return model
 
-def detect_image(model, image_path="scan.jpg"):
-    print(f"\nRunning detection on {image_path}...")
-    frame = cv2.imread(image_path)
+def get_inventory_names():
+    items = get_all_items()
+    return {item.name.lower() for item in items}
 
-    if frame is None:
-        print(f"  Error: Could not load image at '{image_path}'")
-        return
-
-    results = model(frame)
-
-    print(f"\n  Detections:")
-    if len(results[0].boxes) == 0:
-        print("  No objects detected.")
-        return
-
-    for box in results[0].boxes:
-        class_id = int(box.cls[0])
-        class_name = model.names[class_id]
-        confidence = float(box.conf[0])
-        print(f"  {class_name} — confidence: {confidence:.0%}")
-
-def detect_live(model):
-    from camera import find_camera
-
+def detect_and_act(model):
     index, backend = find_camera()
     if index == -1:
         print("  No camera found.")
@@ -44,7 +30,10 @@ def detect_live(model):
         print("  Error: Could not open camera.")
         return
 
-    print("\nLive detection running — press Q to quit, S to save snapshot.\n")
+    print("\nDetection active — press Q to quit.")
+    print("When an item is detected, press I to check in or O to check out.\n")
+
+    last_detection = None  # tracks the most recently detected inventory item
 
     while True:
         ret, frame = cap.read()
@@ -53,23 +42,58 @@ def detect_live(model):
             break
 
         results = model(frame, verbose=False)
-        annotated = results[0].plot()  # draws bounding boxes and labels on the frame
+        annotated = results[0].plot()
 
-        cv2.imshow("Oke Inventory — YOLOv8 Detection", annotated)
+        detected_item = None
+
+        for box in results[0].boxes:
+            confidence = float(box.conf[0])
+            if confidence < CONFIDENCE_THRESHOLD:
+                continue
+
+            class_id = int(box.cls[0])
+            class_name = model.names[class_id]
+
+            # check if this YOLO class maps to an inventory item
+            if class_name in ITEM_MAP:
+                inventory_name = ITEM_MAP[class_name]
+                detected_item = inventory_name
+
+                # overlay item name and confidence on the frame
+                label = f"Inventory: {inventory_name} ({confidence:.0%})"
+                cv2.putText(annotated, label, (10, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 200, 100), 2)
+                cv2.putText(annotated, "Press I = Check In  |  O = Check Out",
+                            (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                break  # act on the highest confidence detection only
+
+        if detected_item:
+            last_detection = detected_item
+        
+        cv2.imshow("Oke Inventory — Detection", annotated)
 
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("q"):
             print("Closing detection feed.")
             break
-        elif key == ord("s"):
-            cv2.imwrite("scan.jpg", frame)
-            print("  Snapshot saved — scan.jpg")
-            detect_image(model, "scan.jpg")
 
-    cap.release()
-    cv2.destroyAllWindows()
+        elif key == ord("i"):
+            if last_detection:
+                print(f"\n  Checking in: {last_detection}")
+                check_in(last_detection)
+                last_detection = None
+            else:
+                print("  No inventory item detected yet — hold an item up to the camera.")
+
+        elif key == ord("o"):
+            if last_detection:
+                print(f"\n  Checking out: {last_detection}")
+                check_out(last_detection)
+                last_detection = None
+            else:
+                print("  No inventory item detected yet — hold an item up to the camera.")
 
 if __name__ == "__main__":
     model = load_model()
-    detect_live(model)
+    detect_and_act(model)
