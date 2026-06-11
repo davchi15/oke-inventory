@@ -67,3 +67,7 @@ def history(name):
     except Exception as e:
         print(f"  Error loading history for '{name}': {e}")
         return render_template("history.html", name=name, rows=[])
+    
+@bp.route("/kiosk")
+def kiosk():
+    return render_template("kiosk.html")

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Oke Works — Kiosk</title>
+<style>
+  /* ============================================================
+     DESIGN TOKENS
+     ============================================================ */
+  :root {
+    --bg: #101412;
+    --surface: #1a201c;
+    --surface-2: #242c27;
+    --text: #e8ede9;
+    --text-dim: #9aa69e;
+    --accent: #2fb380;
+    --accent-dark: #1d7a57;
+    --warn: #d97742;
+    --radius: 18px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ============================================================
+     SCREEN SYSTEM — one .screen visible at a time
+     ============================================================ */
+  .screen {
+    display: none;
+    height: 100vh;
+    flex-direction: column;
+    padding: 24px;
+  }
+  .screen.active { display: flex; }
+
+  .center-stage {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 24px; text-align: center;
+  }
+  .stage-title { font-size: 28px; font-weight: 700; }
+  .stage-sub { font-size: 17px; color: var(--text-dim); }
+
+  /* ============================================================
+     HEADER (home screen)
+     ============================================================ */
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px;
+  }
+  .brand { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+  .brand span { color: var(--accent); }
+  .clock { font-size: 18px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+  /* ============================================================
+     HOME — scan button + inventory grid
+     ============================================================ */
+  .scan-btn {
+    width: 100%;
+    padding: 36px;
+    font-size: 30px;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(160deg, var(--accent), var(--accent-dark));
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    margin-bottom: 24px;
+  }
+  .scan-btn:active { transform: scale(0.98); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .item-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 18px;
+    min-height: 110px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .item-name { font-size: 18px; font-weight: 600; }
+  .item-meta { font-size: 14px; color: var(--text-dim); }
+  .item-qty { font-size: 30px; font-weight: 700; color: var(--accent); }
+  .item-qty.zero { color: var(--warn); }
+
+  /* ============================================================
+     SCANNING — live camera frame
+     ============================================================ */
+  .camera-frame {
+    width: min(70vw, 420px); aspect-ratio: 4/3;
+    background: var(--surface-2);
+    border: 3px dashed var(--accent);
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim); font-size: 17px;
+  }
+  .pulse { animation: pulse 1.6s infinite; }
+  @keyframes pulse { 50% { border-color: var(--accent-dark); } }
+
+  /* ============================================================
+     RESULT — recognized item + check in/out
+     ============================================================ */
+  .result-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 32px 40px;
+    text-align: center;
+  }
+  .result-name { font-size: 34px; font-weight: 700; margin-bottom: 6px; }
+  .result-conf { font-size: 15px; color: var(--text-dim); margin-bottom: 4px; }
+
+  .action-row { display: flex; gap: 16px; width: min(80vw, 520px); }
+  .action-btn {
+    flex: 1; padding: 30px 0;
+    font-size: 24px; font-weight: 700;
+    border: none; border-radius: var(--radius); cursor: pointer; color: #fff;
+  }
+  .action-btn:active { transform: scale(0.97); }
+  .btn-in  { background: var(--accent-dark); }
+  .btn-out { background: var(--warn); }
+  .btn-ghost {
+    background: transparent; border: 2px solid var(--surface-2);
+    color: var(--text-dim); font-size: 17px; padding: 14px 28px;
+    border-radius: var(--radius); cursor: pointer;
+  }
+
+  /* ============================================================
+     CONFIRMED — checkmark + auto-return
+     ============================================================ */
+  .check {
+    width: 110px; height: 110px; border-radius: 50%;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 56px; color: #fff;
+  }
+
+  /* ============================================================
+     ENROLLMENT — progress ring, capture strip, hints
+     ============================================================ */
+  .ring-wrap { position: relative; width: min(64vw, 380px); aspect-ratio: 1; }
+  .ring-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ring-seg { stroke: var(--surface-2); stroke-width: 10; fill: none; stroke-linecap: round; }
+  .ring-seg.filled { stroke: var(--accent); }
+
+  .ring-cam {
+    position: absolute; inset: 12%;
+    background: var(--surface-2);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim); font-size: 15px; overflow: hidden;
+  }
+  .ring-cam.flash { animation: flash 0.35s; }
+  @keyframes flash { 0% { box-shadow: 0 0 0 6px var(--accent) inset; } 100% { box-shadow: none; } }
+
+  .capture-strip { display: flex; gap: 8px; min-height: 56px; }
+  .capture-thumb {
+    width: 56px; height: 56px; border-radius: 10px;
+    background: var(--surface-2);
+    border: 2px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--text-dim);
+  }
+
+  .hint-chip {
+    background: var(--surface); border: 1px solid var(--accent);
+    color: var(--accent); padding: 10px 22px; border-radius: 30px;
+    font-size: 16px; display: none;
+  }
+  .hint-chip.show { display: block; }
+
+  /* ============================================================
+     NAMING — voice-first input + category chips
+     ============================================================ */
+  .name-input {
+    width: min(80vw, 480px); padding: 22px;
+    font-size: 24px; text-align: center;
+    background: var(--surface); color: var(--text);
+    border: 2px solid var(--surface-2); border-radius: var(--radius);
+  }
+  .name-input:focus { outline: none; border-color: var(--accent); }
+
+  .chip-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .cat-chip {
+    padding: 16px 28px; font-size: 18px; border-radius: 30px;
+    background: var(--surface); color: var(--text-dim);
+    border: 2px solid var(--surface-2); cursor: pointer;
+  }
+  .cat-chip.selected { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  .cat-chip .badge { font-size: 11px; color: var(--accent); display: block; }
+
+  .voice-btn {
+    width: 84px; height: 84px; border-radius: 50%;
+    border: none; background: var(--accent); color: #fff;
+    font-size: 34px; cursor: pointer;
+  }
+  .voice-btn:active { transform: scale(0.94); }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HOME
+     ============================================================ -->
+<div class="screen active" id="home">
+  <header>
+    <div class="brand">OKE <span>WORKS</span></div>
+    <div class="clock" id="clock"></div>
+  </header>
+  <button class="scan-btn" onclick="go('scanning')">⌖ &nbsp;Scan Item</button>
+  <div class="grid" id="inventory"></div>
+</div>
+
+<!-- ============================================================
+     SCANNING
+     ============================================================ -->
+<div class="screen" id="scanning">
+  <div class="center-stage">
+    <div class="stage-title">Show me an item</div>
+    <div class="camera-frame pulse">live camera feed</div>
+    <div class="stage-sub">Hold it steady in the frame</div>
+    <button class="btn-ghost" onclick="go('home')">Cancel</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     RESULT — item recognized
+     ============================================================ -->
+<div class="screen" id="result">
+  <div class="center-stage">
+    <div class="result-card">
+      <div class="result-name" id="resultName">Arduino Uno</div>
+      <div class="result-conf" id="resultConf">match 0.93 · Electronics</div>
+      <div class="result-conf" id="resultQty">3 in storage</div>
+    </div>
+    <div class="action-row">
+      <button class="action-btn btn-in"  onclick="confirmAction('in')">Check In</button>
+      <button class="action-btn btn-out" onclick="confirmAction('out')">Check Out</button>
+    </div>
+    <button class="btn-ghost" onclick="go('home')">Cancel</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     UNKNOWN — item not recognized
+     ============================================================ -->
+<div class="screen" id="unknown">
+  <div class="center-stage">
+    <div class="stage-title">I don't recognize this</div>
+    <div class="stage-sub">best match 0.54 — below threshold</div>
+    <div class="action-row">
+      <button class="action-btn btn-in" onclick="startEnrollment()">Enroll It</button>
+      <button class="action-btn" style="background:var(--surface-2)" onclick="go('home')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     ENROLLMENT — multi-angle capture
+     ============================================================ -->
+<div class="screen" id="enroll">
+  <div class="center-stage">
+    <div class="stage-title">Slowly rotate the item</div>
+    <div class="ring-wrap">
+      <svg viewBox="0 0 200 200" id="ringSvg"></svg>
+      <div class="ring-cam" id="ringCam">live camera</div>
+    </div>
+    <div class="stage-sub" id="enrollStatus">Hold steady...</div>
+    <div class="hint-chip" id="hintChip">Try showing me the top</div>
+    <div class="capture-strip" id="captureStrip"></div>
+    <button class="btn-ghost" onclick="go('home')">Cancel</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     NAMING — voice-first item naming
+     ============================================================ -->
+<div class="screen" id="naming">
+  <div class="center-stage">
+    <div class="stage-title">What is this item?</div>
+    <button class="voice-btn" onclick="fakeVoice()" title="Say the name">🎤</button>
+    <input class="name-input" id="itemName" placeholder="or tap to type..." />
+    <div class="stage-sub">Category</div>
+    <div class="chip-row" id="catChips"></div>
+    <div class="action-row">
+      <button class="action-btn btn-in" onclick="saveEnrollment()">Save Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     CONFIRMED — success + auto-return home
+     ============================================================ -->
+<div class="screen" id="confirmed">
+  <div class="center-stage">
+    <div class="check">✓</div>
+    <div class="stage-title" id="confirmMsg">Checked out</div>
+    <div class="stage-sub" id="confirmSub">Arduino Uno · 2 remaining</div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   PLACEHOLDER DATA
+   Replace with fetch('/api/inventory') when the backend is ready
+   ============================================================ */
+const ITEMS = [
+  { name: "Arduino Uno", qty: 3, category: "Electronics" },
+  { name: "Screwdriver", qty: 5, category: "Tools" },
+  { name: "Wire Spool",  qty: 0, category: "Components" },
+  { name: "Multimeter",  qty: 1, category: "Tools" },
+];
+
+const CATEGORIES = ["Electronics", "Tools", "Components", "Other"];
+const SEGMENTS = 8;            // number of diverse views to capture
+const CAPTURE_INTERVAL = 1800; // ms between capture attempts (sim of embed latency)
+
+/* ============================================================
+   SCREEN NAVIGATION
+   ============================================================ */
+function go(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  if (id === "scanning") setTimeout(fakeDetection, 2500); // simulate scan latency
+}
+
+/* Simulated scan result — 50/50 known vs unknown so both paths get exercised.
+   Real version: detect -> crop -> embed -> match against catalog,
+   route on match score vs threshold (~0.75 from the Day 10 experiment). */
+function fakeDetection() {
+  if (!document.getElementById("scanning").classList.contains("active")) return;
+  Math.random() < 0.5 ? go("result") : go("unknown");
+}
+
+/* ============================================================
+   CHECK IN / CHECK OUT
+   ============================================================ */
+function confirmAction(direction) {
+  const verb = direction === "in" ? "Checked in" : "Checked out";
+  const name = document.getElementById("resultName").textContent;
+  document.getElementById("confirmMsg").textContent = verb;
+  document.getElementById("confirmSub").textContent = `${name}`;
+  // hook: call /checkin or /checkout endpoint + TTS confirmation here
+  go("confirmed");
+  setTimeout(() => go("home"), 4000); // kiosk auto-resets
+}
+
+/* ============================================================
+   ENROLLMENT — progress ring + diversity-check simulation
+   ============================================================ */
+let captured = 0, rejects = 0, enrollTimer = null;
+let selectedCat = "Electronics"; // pretend zero-shot CLIP suggested this
+
+function buildRing() {
+  const svg = document.getElementById("ringSvg");
+  svg.innerHTML = "";
+  const r = 92, cx = 100, cy = 100, gap = 6; // degrees of gap between segments
+  const span = 360 / SEGMENTS - gap;
+  for (let i = 0; i < SEGMENTS; i++) {
+    const start = (i * 360 / SEGMENTS - 90 + gap / 2) * Math.PI / 180;
+    const end   = start + span * Math.PI / 180;
+    const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
+    const x2 = cx + r * Math.cos(end),   y2 = cy + r * Math.sin(end);
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", `M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`);
+    path.setAttribute("class", "ring-seg");
+    path.id = `seg${i}`;
+    svg.appendChild(path);
+  }
+}
+
+function startEnrollment() {
+  captured = 0; rejects = 0;
+  buildRing();
+  document.getElementById("captureStrip").innerHTML = "";
+  document.getElementById("hintChip").classList.remove("show");
+  setStatus("Hold steady...");
+  go("enroll");
+  enrollTimer = setInterval(attemptCapture, CAPTURE_INTERVAL);
+}
+
+function setStatus(msg) {
+  document.getElementById("enrollStatus").textContent = msg;
+}
+
+/* Each tick simulates one capture attempt.
+   Real version:
+     1. stability check (frame difference below threshold)
+     2. YOLO crop -> CLIP embedding
+     3. diversity check: max cosine sim vs this session's captures
+        > 0.92  -> reject ("looks the same")
+        <= 0.92 -> accept (store embedding, fill segment)        */
+function attemptCapture() {
+  if (!document.getElementById("enroll").classList.contains("active")) {
+    clearInterval(enrollTimer);
+    return;
+  }
+
+  if (Math.random() < 0.65) {
+    // --- accepted: new diverse view ---
+    rejects = 0;
+    document.getElementById("hintChip").classList.remove("show");
+    document.getElementById(`seg${captured}`).classList.add("filled");
+    captured++;
+
+    // capture flash on the camera circle
+    const cam = document.getElementById("ringCam");
+    cam.classList.remove("flash"); void cam.offsetWidth; cam.classList.add("flash");
+
+    // add a thumbnail to the strip (real version: the actual crop image)
+    const thumb = document.createElement("div");
+    thumb.className = "capture-thumb";
+    thumb.textContent = `#${captured}`;
+    document.getElementById("captureStrip").appendChild(thumb);
+
+    setStatus(captured < SEGMENTS ? "Got it — keep rotating" : "All angles captured!");
+    // hook: play tick sound here
+
+    if (captured === SEGMENTS) {
+      clearInterval(enrollTimer);
+      setTimeout(showNaming, 1200);
+    }
+  } else {
+    // --- rejected: too similar to an existing capture ---
+    rejects++;
+    setStatus("Looks the same — rotate a bit more");
+    if (rejects >= 2) document.getElementById("hintChip").classList.add("show");
+  }
+}
+
+/* ============================================================
+   NAMING
+   ============================================================ */
+function showNaming() {
+  const row = document.getElementById("catChips");
+  row.innerHTML = CATEGORIES.map(c => `
+    <div class="cat-chip ${c === selectedCat ? "selected" : ""}" onclick="pickCat('${c}', this)">
+      ${c}${c === selectedCat ? '<span class="badge">suggested</span>' : ""}
+    </div>`).join("");
+  document.getElementById("itemName").value = "";
+  go("naming");
+}
+
+function pickCat(cat, el) {
+  selectedCat = cat;
+  document.querySelectorAll(".cat-chip").forEach(c => c.classList.remove("selected"));
+  el.classList.add("selected");
+  // note: "suggested" badge stays on the original suggestion only
+}
+
+function fakeVoice() {
+  // hook: Whisper integration lands in Week 3 — record, transcribe, fill input
+  const input = document.getElementById("itemName");
+  input.placeholder = "Listening... (voice arrives in Week 3)";
+  setTimeout(() => { input.placeholder = "or tap to type..."; }, 2000);
+}
+
+function saveEnrollment() {
+  const name = document.getElementById("itemName").value.trim() || "New Item";
+  document.getElementById("confirmMsg").textContent = "Enrolled!";
+  document.getElementById("confirmSub").textContent =
+    `${name} · ${selectedCat} · ${SEGMENTS} views captured`;
+  // hook: POST embeddings + name + category to /api/enroll here
+  go("confirmed");
+  setTimeout(() => go("home"), 4000);
+}
+
+/* ============================================================
+   HOME SCREEN RENDERING
+   ============================================================ */
+function renderInventory() {
+  const grid = document.getElementById("inventory");
+  grid.innerHTML = ITEMS.map(i => `
+    <div class="item-card">
+      <div>
+        <div class="item-name">${i.name}</div>
+        <div class="item-meta">${i.category}</div>
+      </div>
+      <div class="item-qty ${i.qty === 0 ? "zero" : ""}">${i.qty}</div>
+    </div>`).join("");
+}
+
+setInterval(() => {
+  document.getElementById("clock").textContent =
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}, 1000);
+
+renderInventory();
+</script>
+</body>
+</html>
