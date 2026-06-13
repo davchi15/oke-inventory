@@ -24,6 +24,13 @@ def suggest_category(image_path):
         score = cosine_similarity(img_emb, text_emb)
         print(f"  {cat}: {score:.3f}")
 
+def get_embedding_from_array(bgr_array):
+    """Embed an OpenCV frame (BGR numpy array) directly."""
+    rgb = bgr_array[:, :, ::-1]               # OpenCV is BGR, PIL expects RGB
+    image = Image.fromarray(rgb)
+    embedding = model.encode(image)
+    return embedding / np.linalg.norm(embedding)
+
 if __name__ == "__main__":
     run_experiment()
     suggest_category("test_images/front1.jpg")

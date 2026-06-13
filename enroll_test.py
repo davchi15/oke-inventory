@@ -1,5 +1,5 @@
 from embedding_store import (create_embeddings_table, enroll_item,
-                             match_item, load_catalog, get_view_count,reset_catalog)
+                             match_item, load_catalog, get_view_count)
 from embeddings import get_embedding
 from crop import crop_main_object
 from db import create_table
@@ -21,7 +21,6 @@ def enroll():
 
 
 def recognize(image_path):
-
     os.makedirs("test_images/crops", exist_ok=True)
     crop_path = f"test_images/crops/query_{os.path.basename(image_path)}"
     crop_main_object(image_path, crop_path)
@@ -42,6 +41,5 @@ if __name__ == "__main__":
               f"({get_view_count('Arduino Uno')} for Arduino Uno).")
 
     print("\n--- Recognition test ---")
-    get_embedding.
-    recognize("test_images/query.jpg")   # never-seen view — should match
-    recognize("test_images/other.jpg")   # unrelated object — should be unknown
+    recognize("test_images/query.jpg")
+    recognize("test_images/other.jpg")
